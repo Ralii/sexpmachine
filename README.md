@@ -89,7 +89,7 @@ sexpmachine uses [rewrite-clj](https://github.com/clj-commons/rewrite-clj) to pa
 The "size" metric counts all nodes in an expression, including nested structures. For example:
 - `x` = 1 node
 - `[a b]` = 3 nodes (vector + 2 symbols)
-- `{:a 1}` = 4 nodes (map + key + value + entry)
+- `{:a 1}` = 4 nodes (map + map-entry + key + value)
 
 ## License
 
