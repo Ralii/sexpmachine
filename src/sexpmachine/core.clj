@@ -58,9 +58,17 @@
        (seq expr)
        (symbol? (first expr))))
 
+(defn require-entry?
+  "Check if expression looks like a require entry, e.g. [clojure.string :as str]"
+  [expr]
+  (and (vector? expr)
+       (seq expr)
+       (symbol? (first expr))
+       (some #{:as :refer :rename} expr)))
+
 (defn analyze-project
   "Analyze a project directory for repeating patterns."
-  [dir min-size min-frequency {:keys [exclude-function-calls?]}]
+  [dir min-size min-frequency {:keys [exclude-calls?]}]
   (let [files (find-clj-files dir)]
     (->> files
          (mapcat (fn [path]
@@ -72,7 +80,8 @@
                                   :file path
                                   :position (meta node)}))))))
          (filter #(>= (:size %) min-size))
-         (filter #(if exclude-function-calls? (not (function-call? (:sexpr %))) true))
+         (remove #(require-entry? (:sexpr %)))
+         (filter #(if exclude-calls? (not (function-call? (:sexpr %))) true))
          (group-by :sexpr)
          (filter (fn [[_ occurrences]] (>= (count occurrences) min-frequency)))
          (sort-by (fn [[_ occurrences]] (- (count occurrences)))))))
