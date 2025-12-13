@@ -2,7 +2,7 @@
 
 Find repeating s-expression patterns in Clojure codebases.
 
-Analyzes `.clj` and `.cljc` files to identify duplicated code patterns that might benefit from refactoring into shared functions or macros.
+Analyzes `.clj`, `.cljc`, and `.cljs` files to identify duplicated code patterns that might benefit from refactoring into shared functions or macros.
 
 ## Installation
 

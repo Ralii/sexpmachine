@@ -48,9 +48,9 @@
     1))
 
 (defn find-clj-files
-  "Find all .clj and .cljc files in a directory."
+  "Find all .clj, .cljc, and .cljs files in a directory."
   [dir]
-  (->> (fs/glob dir "**.{clj,cljc}")
+  (->> (fs/glob dir "**.{clj,cljc,cljs}")
        (map str)))
 
 (defn function-call?
