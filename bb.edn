@@ -6,4 +6,5 @@
                :task (let [result (t/run-tests 'sexpmachine.core-test)]
                        (when (or (pos? (:fail result))
                                  (pos? (:error result)))
-                         (System/exit 1)))}}}
+                         (System/exit 1)))}}
+ :bbin/bin {sexpmachine {:main-opts ["-m" "sexpmachine.core"]}}}

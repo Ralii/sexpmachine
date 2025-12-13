@@ -28,7 +28,7 @@
 
 (deftest analyze-project-test
   (testing "finds repeating patterns with min-size 3 and min-frequency 2"
-    (let [results (sut/analyze-project fixtures-dir 3 2)
+    (let [results (sut/analyze-project fixtures-dir 3 2 {})
           patterns (set (map first results))]
       (is (pos? (count results)))
       (is (contains? patterns {:class "container"}))
@@ -36,18 +36,18 @@
       (is (contains? patterns {:color :blue}))))
 
   (testing "respects min-size threshold"
-    (let [results-small (sut/analyze-project fixtures-dir 2 2)
-          results-large (sut/analyze-project fixtures-dir 10 2)]
+    (let [results-small (sut/analyze-project fixtures-dir 2 2 {})
+          results-large (sut/analyze-project fixtures-dir 10 2 {})]
       (is (> (count results-small) (count results-large)))))
 
   (testing "respects min-frequency threshold"
-    (let [results-freq-2 (sut/analyze-project fixtures-dir 3 2)
-          results-freq-10 (sut/analyze-project fixtures-dir 3 10)]
+    (let [results-freq-2 (sut/analyze-project fixtures-dir 3 2 {})
+          results-freq-10 (sut/analyze-project fixtures-dir 3 10 {})]
       (is (> (count results-freq-2) (count results-freq-10))))))
 
 (deftest analyze-project-counts-test
   (testing "correctly counts occurrences"
-    (let [results (sut/analyze-project fixtures-dir 3 2)
+    (let [results (sut/analyze-project fixtures-dir 3 2 {})
           result-map (into {} results)]
       ;; {:class "container"} should appear 5 times across both files
       (is (= 5 (count (get result-map {:class "container"}))))
