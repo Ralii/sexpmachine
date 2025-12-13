@@ -26,7 +26,7 @@
     (p/parse-file-all (str path))
     (catch Exception e
       (binding [*out* *err*]
-        (println "Warning: Failed to parse" (str path) "-" (.getMessage e)))
+        (prn "Warning: Failed to parse" (str path) "-" (.getMessage e)))
       nil)))
 
 (defn collect-subexpressions
@@ -41,7 +41,6 @@
        (mapcat collect-subexpressions children)))))
 
 (defn expression-size
-  "Calculate the size of an expression (number of nodes)."
   [expr]
   (if (coll? expr)
     (+ 1 (reduce + 0 (map expression-size expr)))
@@ -54,7 +53,6 @@
        (map str)))
 
 (defn function-call?
-  "Check if an expression is a function/macro call (list starting with a symbol)."
   [expr]
   (and (list? expr)
        (seq expr)
@@ -62,7 +60,7 @@
 
 (defn analyze-project
   "Analyze a project directory for repeating patterns."
-  [dir min-size min-frequency {:keys [exclude-calls?]}]
+  [dir min-size min-frequency {:keys [exclude-function-calls?]}]
   (let [files (find-clj-files dir)]
     (->> files
          (mapcat (fn [path]
@@ -74,42 +72,41 @@
                                   :file path
                                   :position (meta node)}))))))
          (filter #(>= (:size %) min-size))
-         (filter #(if exclude-calls? (not (function-call? (:sexpr %))) true))
+         (filter #(if exclude-function-calls? (not (function-call? (:sexpr %))) true))
          (group-by :sexpr)
          (filter (fn [[_ occurrences]] (>= (count occurrences) min-frequency)))
          (sort-by (fn [[_ occurrences]] (- (count occurrences)))))))
 
-(defn print-results
-  "Print analysis results."
+(defn print-analysis-results
   [results]
   (if (empty? results)
-    (println (colorize :yellow "No repeating patterns found."))
+    (prn (colorize :yellow "No repeating patterns found."))
     (doseq [[sexpr occurrences] results]
-      (println)
-      (println (colorize :cyan "Pattern:") (colorize :bold (pr-str sexpr)))
-      (println (colorize :gray "  Size:") (:size (first occurrences)) (colorize :gray "nodes"))
-      (println (colorize :green "  Found") (colorize :bold (count occurrences)) (colorize :green "times:"))
+      (prn)
+      (prn (colorize :cyan "Pattern:") (colorize :bold (pr-str sexpr)))
+      (prn (colorize :gray "  Size:") (:size (first occurrences)) (colorize :gray "nodes"))
+      (prn (colorize :green "  Found") (colorize :bold (count occurrences)) (colorize :green "times:"))
       (doseq [{:keys [file position]} occurrences]
-        (println "    -" (colorize :blue file) (when position (colorize :gray (str ":" (:row position)))))))))
+        (prn "    -" (colorize :blue file) (when position (colorize :gray (str ":" (:row position)))))))))
 
 (defn print-usage []
-  (println (colorize :bold "sexpmachine") "- Find repeating patterns in Clojure code")
-  (println)
-  (println (colorize :yellow "Usage:") "sexpmachine <directory> [min-size] [min-frequency] [--no-calls]")
-  (println)
-  (println (colorize :yellow "Arguments:"))
-  (println (colorize :cyan "  directory     ") "Directory to analyze (required)")
-  (println (colorize :cyan "  min-size      ") "Minimum expression size in nodes (default: 3)")
-  (println (colorize :cyan "  min-frequency ") "Minimum occurrences to report (default: 5)")
-  (println)
-  (println (colorize :yellow "Options:"))
-  (println (colorize :green "  --no-calls    ") "Exclude function/macro calls from results")
-  (println (colorize :green "  --help        ") "Show this help message")
-  (println)
-  (println (colorize :yellow "Examples:"))
-  (println (colorize :gray "  sexpmachine src"))
-  (println (colorize :gray "  sexpmachine src 4 3"))
-  (println (colorize :gray "  sexpmachine src 3 2 --no-calls")))
+  (prn (colorize :bold "sexpmachine") "- Find repeating patterns in Clojure code")
+  (prn)
+  (prn (colorize :yellow "Usage:") "sexpmachine <directory> [min-size] [min-frequency] [--no-calls]")
+  (prn)
+  (prn (colorize :yellow "Arguments:"))
+  (prn (colorize :cyan "  directory     ") "Directory to analyze (required)")
+  (prn (colorize :cyan "  min-size      ") "Minimum expression size in nodes (default: 3)")
+  (prn (colorize :cyan "  min-frequency ") "Minimum occurrences to report (default: 5)")
+  (prn)
+  (prn (colorize :yellow "Options:"))
+  (prn (colorize :green "  --no-calls    ") "Exclude function/macro calls from results")
+  (prn (colorize :green "  --help        ") "Show this help message")
+  (prn)
+  (prn (colorize :yellow "Examples:"))
+  (prn (colorize :gray "  sexpmachine src"))
+  (prn (colorize :gray "  sexpmachine src 4 3"))
+  (prn (colorize :gray "  sexpmachine src 3 2 --no-calls")))
 
 (defn -main [& args]
   (let [help? (or (empty? args) (some #{"--help" "-h"} args))]
@@ -120,13 +117,13 @@
             dir (first args)
             min-size (parse-long (or (second args) "3"))
             min-frequency (parse-long (or (nth args 2 nil) "5"))]
-        (println (colorize :bold "Analyzing") (colorize :blue dir)
+        (prn (colorize :bold "Analyzing") (colorize :blue dir)
                  (colorize :gray "(min size:") min-size
                  (colorize :gray ", min frequency:") min-frequency
                  (str (when exclude-calls? (colorize :green ", excluding calls")) (colorize :gray ")")))
-        (println (colorize :gray "---"))
+        (prn (colorize :gray "---"))
         (let [results (analyze-project dir min-size min-frequency {:exclude-calls? exclude-calls?})]
-          (print-results results))))))
+          (print-analysis-results results))))))
 
 (when (= *file* (System/getProperty "babashka.file"))
   (apply -main *command-line-args*))
