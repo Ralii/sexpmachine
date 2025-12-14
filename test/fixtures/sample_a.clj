@@ -26,3 +26,11 @@
 (defn process-3 [x]
   (when-let [result (some-> x :data :value)]
     (inc result)))
+
+(defn multiline-pattern-1 []
+  (let [config {:host "localhost"
+                :port 8080}
+        client (create-client config)]
+    (connect! client)
+    {:client client
+     :config config}))

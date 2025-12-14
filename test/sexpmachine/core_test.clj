@@ -62,3 +62,16 @@
   (testing "returns nil for non-existent file"
     (let [node (sut/parse-file "test/fixtures/nonexistent.clj")]
       (is (nil? node)))))
+
+(deftest multiline-pattern-test
+  (testing "finds repeating multiline patterns"
+    (let [results (sut/analyze-project fixtures-dir 5 2 {})
+          patterns (set (map first results))
+          multiline-let '(let [config {:host "localhost"
+                                       :port 8080}
+                               client (create-client config)]
+                           (connect! client)
+                           {:client client
+                            :config config})]
+      (is (contains? patterns multiline-let)
+          "Should detect identical multiline let blocks across files"))))

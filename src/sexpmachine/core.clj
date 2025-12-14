@@ -1,6 +1,5 @@
 (ns sexpmachine.core
   (:require [babashka.fs :as fs]
-            [clojure.java.io :as io]
             [rewrite-clj.parser :as p]
             [rewrite-clj.node :as n]))
 

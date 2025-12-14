@@ -25,3 +25,11 @@
        (map :name)
        (filter some?)
        (map keyword)))
+
+(defn multiline-pattern-2 []
+  (let [config {:host "localhost"
+                :port 8080}
+        client (create-client config)]
+    (connect! client)
+    {:client client
+     :config config}))
