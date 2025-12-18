@@ -25,7 +25,7 @@
     (p/parse-file-all (str path))
     (catch Exception e
       (binding [*out* *err*]
-        (prn "Warning: Failed to parse" (str path) "-" (.getMessage e)))
+        (println "Warning: Failed to parse" (str path) "-" (.getMessage e)))
       nil)))
 
 (defn collect-subexpressions
@@ -88,33 +88,33 @@
 (defn print-analysis-results
   [results]
   (if (empty? results)
-    (prn (colorize :yellow "No repeating patterns found."))
+    (println (colorize :yellow "No repeating patterns found."))
     (doseq [[sexpr occurrences] results]
-      (prn)
-      (prn (colorize :cyan "Pattern:") (colorize :bold (pr-str sexpr)))
-      (prn (colorize :gray "  Size:") (:size (first occurrences)) (colorize :gray "nodes"))
-      (prn (colorize :green "  Found") (colorize :bold (count occurrences)) (colorize :green "times:"))
+      (println)
+      (println (colorize :cyan "Pattern:") (colorize :bold (pr-str sexpr)))
+      (println (colorize :gray "  Size:") (:size (first occurrences)) (colorize :gray "nodes"))
+      (println (colorize :green "  Found") (colorize :bold (count occurrences)) (colorize :green "times:"))
       (doseq [{:keys [file position]} occurrences]
-        (prn "    -" (colorize :blue file) (when position (colorize :gray (str ":" (:row position)))))))))
+        (println "    -" (colorize :blue file) (when position (colorize :gray (str ":" (:row position)))))))))
 
 (defn print-usage []
-  (prn (colorize :bold "sexpmachine") "- Find repeating patterns in Clojure code")
-  (prn)
-  (prn (colorize :yellow "Usage:") "sexpmachine <directory> [min-size] [min-frequency] [--no-calls]")
-  (prn)
-  (prn (colorize :yellow "Arguments:"))
-  (prn (colorize :cyan "  directory     ") "Directory to analyze (required)")
-  (prn (colorize :cyan "  min-size      ") "Minimum expression size in nodes (default: 3)")
-  (prn (colorize :cyan "  min-frequency ") "Minimum occurrences to report (default: 5)")
-  (prn)
-  (prn (colorize :yellow "Options:"))
-  (prn (colorize :green "  --no-calls    ") "Exclude function/macro calls from results")
-  (prn (colorize :green "  --help        ") "Show this help message")
-  (prn)
-  (prn (colorize :yellow "Examples:"))
-  (prn (colorize :gray "  sexpmachine src"))
-  (prn (colorize :gray "  sexpmachine src 4 3"))
-  (prn (colorize :gray "  sexpmachine src 3 2 --no-calls")))
+  (println (colorize :bold "sexpmachine") "- Find repeating patterns in Clojure code")
+  (println)
+  (println (colorize :yellow "Usage:") "sexpmachine <directory> [min-size] [min-frequency] [--no-calls]")
+  (println)
+  (println (colorize :yellow "Arguments:"))
+  (println (colorize :cyan "  directory     ") "Directory to analyze (required)")
+  (println (colorize :cyan "  min-size      ") "Minimum expression size in nodes (default: 3)")
+  (println (colorize :cyan "  min-frequency ") "Minimum occurrences to report (default: 5)")
+  (println)
+  (println (colorize :yellow "Options:"))
+  (println (colorize :green "  --no-calls    ") "Exclude function/macro calls from results")
+  (println (colorize :green "  --help        ") "Show this help message")
+  (println)
+  (println (colorize :yellow "Examples:"))
+  (println (colorize :gray "  sexpmachine src"))
+  (println (colorize :gray "  sexpmachine src 4 3"))
+  (println (colorize :gray "  sexpmachine src 3 2 --no-calls")))
 
 (defn -main [& args]
   (let [help? (or (empty? args) (some #{"--help" "-h"} args))]
@@ -125,11 +125,11 @@
             dir (first args)
             min-size (parse-long (or (second args) "3"))
             min-frequency (parse-long (or (nth args 2 nil) "5"))]
-        (prn (colorize :bold "Analyzing") (colorize :blue dir)
+        (println (colorize :bold "Analyzing") (colorize :blue dir)
                  (colorize :gray "(min size:") min-size
                  (colorize :gray ", min frequency:") min-frequency
                  (str (when exclude-calls? (colorize :green ", excluding calls")) (colorize :gray ")")))
-        (prn (colorize :gray "---"))
+        (println (colorize :gray "---"))
         (let [results (analyze-project dir min-size min-frequency {:exclude-calls? exclude-calls?})]
           (print-analysis-results results))))))
 
