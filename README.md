@@ -15,7 +15,7 @@ bbin install io.github.Ralii/sexpmachine
 ## Usage
 
 ```
-sexpmachine <directory> [min-size] [min-frequency] [--no-calls]
+sexpmachine <directory> [min-size] [min-frequency] [options]
 
 Arguments:
   directory      Directory to analyze (required)
@@ -23,8 +23,9 @@ Arguments:
   min-frequency  Minimum occurrences to report (default: 5)
 
 Options:
-  --no-calls     Exclude function/macro calls from results
-  --help         Show this help message
+  --no-calls           Exclude function/macro calls from results
+  --no-keyword-chains  Exclude keyword-heavy expressions (maps, get-in paths, etc.)
+  --help               Show this help message
 ```
 
 ## Examples
@@ -45,6 +46,12 @@ Exclude function calls to focus on data patterns:
 
 ```bash
 sexpmachine src 3 2 --no-calls
+```
+
+Exclude keyword-heavy expressions (get-in paths, keyword maps, etc.):
+
+```bash
+sexpmachine src 3 2 --no-keyword-chains
 ```
 
 ## Example Output

@@ -65,9 +65,25 @@
        (symbol? (first expr))
        (some #{:as :refer :rename} expr)))
 
+(defn- collect-leaves
+  "Collect all leaf (non-collection) values from an expression."
+  [expr]
+  (if (coll? expr)
+    (mapcat collect-leaves expr)
+    [expr]))
+
+(defn keyword-chain?
+  "Check if expression is dominated by keywords (>= 50% of leaves are keywords)."
+  [expr]
+  (let [leaves (collect-leaves expr)
+        total (count leaves)
+        keywords (count (filter keyword? leaves))]
+    (and (> total 2)
+         (>= (/ keywords total) 0.5))))
+
 (defn analyze-project
   "Analyze a project directory for repeating patterns."
-  [dir min-size min-frequency {:keys [exclude-calls?]}]
+  [dir min-size min-frequency {:keys [exclude-calls? exclude-keyword-chains?]}]
   (let [files (find-clj-files dir)]
     (->> files
          (mapcat (fn [path]
@@ -81,6 +97,7 @@
          (filter #(>= (:size %) min-size))
          (remove #(require-entry? (:sexpr %)))
          (filter #(if exclude-calls? (not (function-call? (:sexpr %))) true))
+         (filter #(if exclude-keyword-chains? (not (keyword-chain? (:sexpr %))) true))
          (group-by :sexpr)
          (filter (fn [[_ occurrences]] (>= (count occurrences) min-frequency)))
          (sort-by (fn [[_ occurrences]] (- (count occurrences)))))))
@@ -120,7 +137,7 @@
 (defn print-usage []
   (println (colorize :bold "sexpmachine") "- Find repeating patterns in Clojure code")
   (println)
-  (println (colorize :yellow "Usage:") "sexpmachine <directory> [min-size] [min-frequency] [--no-calls]")
+  (println (colorize :yellow "Usage:") "sexpmachine <directory> [min-size] [min-frequency] [options]")
   (println)
   (println (colorize :yellow "Arguments:"))
   (println (colorize :cyan "  directory     ") "Directory to analyze (required)")
@@ -128,29 +145,36 @@
   (println (colorize :cyan "  min-frequency ") "Minimum occurrences to report (default: 5)")
   (println)
   (println (colorize :yellow "Options:"))
-  (println (colorize :green "  --no-calls    ") "Exclude function/macro calls from results")
-  (println (colorize :green "  --help        ") "Show this help message")
+  (println (colorize :green "  --no-calls          ") "Exclude function/macro calls from results")
+  (println (colorize :green "  --no-keyword-chains ") "Exclude keyword-heavy expressions (maps, get-in paths, etc.)")
+  (println (colorize :green "  --help              ") "Show this help message")
   (println)
   (println (colorize :yellow "Examples:"))
   (println (colorize :gray "  sexpmachine src"))
   (println (colorize :gray "  sexpmachine src 4 3"))
-  (println (colorize :gray "  sexpmachine src 3 2 --no-calls")))
+  (println (colorize :gray "  sexpmachine src 3 2 --no-calls"))
+  (println (colorize :gray "  sexpmachine src 3 2 --no-keyword-chains")))
 
 (defn -main [& args]
   (let [help? (or (empty? args) (some #{"--help" "-h"} args))]
     (if help?
       (print-usage)
       (let [exclude-calls? (some #{"--no-calls"} args)
-            args (remove #{"--no-calls"} args)
+            exclude-keyword-chains? (some #{"--no-keyword-chains"} args)
+            args (remove #{"--no-calls" "--no-keyword-chains"} args)
             dir (first args)
             min-size (parse-long (or (second args) "3"))
-            min-frequency (parse-long (or (nth args 2 nil) "5"))]
+            min-frequency (parse-long (or (nth args 2 nil) "5"))
+            opts-str (str (when exclude-calls? (colorize :green ", excluding calls"))
+                          (when exclude-keyword-chains? (colorize :green ", excluding keyword chains")))]
         (println (colorize :bold "Analyzing") (colorize :blue dir)
                  (colorize :gray "(min size:") min-size
                  (colorize :gray ", min frequency:") min-frequency
-                 (str (when exclude-calls? (colorize :green ", excluding calls")) (colorize :gray ")")))
+                 (str opts-str (colorize :gray ")")))
         (println (colorize :gray "---"))
-        (let [results (analyze-project dir min-size min-frequency {:exclude-calls? exclude-calls?})]
+        (let [results (analyze-project dir min-size min-frequency
+                                       {:exclude-calls? exclude-calls?
+                                        :exclude-keyword-chains? exclude-keyword-chains?})]
           (print-analysis-results results))))))
 
 (when (= *file* (System/getProperty "babashka.file"))
