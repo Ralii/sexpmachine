@@ -29,15 +29,13 @@
       nil)))
 
 (defn- ns-form?
-  "Check if expression is a namespace form (ns ...)."
   [expr]
   (and (list? expr)
        (seq expr)
        (= 'ns (first expr))))
 
 (defn collect-subexpressions
-  "Recursively collect all sub-expressions from a node.
-   Returns a seq of [sexpr node] pairs. Skips ns forms entirely."
+  "Returns a seq of [sexpr node] pairs."
   [node]
   (when (n/inner? node)
     (let [sexpr (try (n/sexpr node) (catch Exception _ nil))]
@@ -54,7 +52,6 @@
     1))
 
 (defn find-clj-files
-  "Find all .clj, .cljc, and .cljs files in a directory."
   [dir]
   (->> (fs/glob dir "**.{clj,cljc,cljs}")
        (map str)))
@@ -74,14 +71,12 @@
        (some #{:as :refer :rename} expr)))
 
 (defn- collect-leaves
-  "Collect all leaf (non-collection) values from an expression."
   [expr]
   (if (coll? expr)
     (mapcat collect-leaves expr)
     [expr]))
 
 (defn keyword-chain?
-  "Check if expression is dominated by keywords (>= 50% of leaves are keywords)."
   [expr]
   (let [leaves (collect-leaves expr)
         total (count leaves)
@@ -93,8 +88,6 @@
   #{:keys :strs :syms :as :or})
 
 (defn fn-args-vector?
-  "Check if expression looks like function arguments, e.g. [a b c] or [x & rest].
-   Only checks top-level elements - nested expressions disqualify it."
   [expr]
   (and (vector? expr)
        (seq expr)
@@ -104,7 +97,6 @@
                expr)))
 
 (defn analyze-project
-  "Analyze a project directory for repeating patterns."
   [dir min-size min-frequency {:keys [exclude-calls? exclude-keyword-chains?]}]
   (let [files (find-clj-files dir)]
     (->> files
