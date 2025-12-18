@@ -1,4 +1,6 @@
-(ns fixtures.sample-b)
+(ns fixtures.sample-b
+  (:require [clojure.string :as str]
+            [clojure.set :as set]))
 
 ;; More repeating patterns
 
@@ -33,3 +35,10 @@
     (connect! client)
     {:client client
      :config config}))
+
+;; Functions with identical argument vectors for testing fn-args filtering
+(defn handler-3 [request response opts]
+  {:opts opts})
+
+(defn process-item [{:keys [id name]} opts]
+  {:id id :name name})

@@ -75,3 +75,42 @@
                             :config config})]
       (is (contains? patterns multiline-let)
           "Should detect identical multiline let blocks across files"))))
+
+(deftest ns-forms-skipped-test
+  (testing "ns forms and their contents are not included in results"
+    (let [results (sut/analyze-project fixtures-dir 3 2 {})
+          patterns (set (map first results))
+          all-sexprs (mapcat (fn [[_ occs]] (map :sexpr occs)) results)]
+      ;; The identical require vectors should NOT appear as patterns
+      (is (not (contains? patterns '[clojure.string :as str]))
+          "Require entries should be skipped")
+      (is (not (contains? patterns '[clojure.set :as set]))
+          "Require entries should be skipped")
+      ;; No pattern should be an ns form
+      (is (not (some #(and (list? %) (= 'ns (first %))) patterns))
+          "ns forms should be skipped")
+      ;; No pattern should contain :require keyword at top level (ns internals)
+      (is (not (some #(and (list? %) (some #{:require} %)) patterns))
+          "ns :require clauses should be skipped"))))
+
+(deftest fn-args-skipped-test
+  (testing "function argument vectors are not included in results"
+    (let [results (sut/analyze-project fixtures-dir 3 2 {})
+          patterns (set (map first results))]
+      ;; The identical [request response opts] args should NOT appear
+      (is (not (contains? patterns '[request response opts]))
+          "Simple fn args should be skipped")
+      ;; Destructuring args should also be skipped
+      (is (not (contains? patterns '[{:keys [id name]} opts]))
+          "Destructuring fn args should be skipped")))
+
+  (testing "fn-args-vector? predicate works correctly"
+    ;; Should match simple args
+    (is (sut/fn-args-vector? '[a b c]))
+    (is (sut/fn-args-vector? '[x & rest]))
+    ;; Should match destructuring
+    (is (sut/fn-args-vector? '[{:keys [a b]} opts]))
+    ;; Should NOT match vectors with expressions
+    (is (not (sut/fn-args-vector? '[result (some-> x :data)])))
+    ;; Should NOT match let bindings with values
+    (is (not (sut/fn-args-vector? '[config {:port 8080}])))))

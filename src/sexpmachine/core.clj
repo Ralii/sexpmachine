@@ -28,16 +28,24 @@
         (println "Warning: Failed to parse" (str path) "-" (.getMessage e)))
       nil)))
 
+(defn- ns-form?
+  "Check if expression is a namespace form (ns ...)."
+  [expr]
+  (and (list? expr)
+       (seq expr)
+       (= 'ns (first expr))))
+
 (defn collect-subexpressions
   "Recursively collect all sub-expressions from a node.
-   Returns a seq of [sexpr node] pairs."
+   Returns a seq of [sexpr node] pairs. Skips ns forms entirely."
   [node]
   (when (n/inner? node)
-    (let [children (n/children node)]
-      (concat
-       (when-let [sexpr (try (n/sexpr node) (catch Exception _ nil))]
-         [[sexpr node]])
-       (mapcat collect-subexpressions children)))))
+    (let [sexpr (try (n/sexpr node) (catch Exception _ nil))]
+      (when-not (ns-form? sexpr)
+        (let [children (n/children node)]
+          (concat
+           (when sexpr [[sexpr node]])
+           (mapcat collect-subexpressions children)))))))
 
 (defn expression-size
   [expr]
@@ -81,6 +89,20 @@
     (and (> total 2)
          (>= (/ keywords total) 0.5))))
 
+(def ^:private destructuring-keys
+  #{:keys :strs :syms :as :or})
+
+(defn fn-args-vector?
+  "Check if expression looks like function arguments, e.g. [a b c] or [x & rest].
+   Only checks top-level elements - nested expressions disqualify it."
+  [expr]
+  (and (vector? expr)
+       (seq expr)
+       (every? #(or (symbol? %)
+                    (and (map? %) (some destructuring-keys (keys %)))  ; {:keys [...]} destructuring
+                    (and (vector? %) (every? symbol? %)))              ; nested vector destructuring
+               expr)))
+
 (defn analyze-project
   "Analyze a project directory for repeating patterns."
   [dir min-size min-frequency {:keys [exclude-calls? exclude-keyword-chains?]}]
@@ -96,6 +118,7 @@
                                   :position (meta node)}))))))
          (filter #(>= (:size %) min-size))
          (remove #(require-entry? (:sexpr %)))
+         (remove #(fn-args-vector? (:sexpr %)))
          (filter #(if exclude-calls? (not (function-call? (:sexpr %))) true))
          (filter #(if exclude-keyword-chains? (not (keyword-chain? (:sexpr %))) true))
          (group-by :sexpr)

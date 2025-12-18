@@ -1,4 +1,6 @@
-(ns fixtures.sample-a)
+(ns fixtures.sample-a
+  (:require [clojure.string :as str]
+            [clojure.set :as set]))
 
 ;; This file has repeating patterns for testing
 
@@ -34,3 +36,10 @@
     (connect! client)
     {:client client
      :config config}))
+
+;; Functions with identical argument vectors for testing fn-args filtering
+(defn handler-1 [request response opts]
+  {:request request})
+
+(defn handler-2 [request response opts]
+  {:response response})
