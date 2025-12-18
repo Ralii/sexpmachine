@@ -89,13 +89,33 @@
   [results]
   (if (empty? results)
     (println (colorize :yellow "No repeating patterns found."))
-    (doseq [[sexpr occurrences] results]
-      (println)
-      (println (colorize :cyan "Pattern:") (colorize :bold (pr-str sexpr)))
-      (println (colorize :gray "  Size:") (:size (first occurrences)) (colorize :gray "nodes"))
-      (println (colorize :green "  Found") (colorize :bold (count occurrences)) (colorize :green "times:"))
-      (doseq [{:keys [file position]} occurrences]
-        (println "    -" (colorize :blue file) (when position (colorize :gray (str ":" (:row position)))))))))
+    (do
+      (doseq [[sexpr occurrences] results]
+        (println)
+        (println (colorize :cyan "Pattern:") (colorize :bold (pr-str sexpr)))
+        (println (colorize :gray "  Size:") (:size (first occurrences)) (colorize :gray "nodes"))
+        (println (colorize :green "  Found") (colorize :bold (count occurrences)) (colorize :green "times:"))
+        (doseq [{:keys [file position]} occurrences]
+          (println "    -" (colorize :blue file) (when position (colorize :gray (str ":" (:row position)))))))
+      ;; Summary
+      (let [total-patterns (count results)
+            total-occurrences (reduce + (map (comp count second) results))
+            all-occurrences (mapcat second results)
+            files-with-counts (->> all-occurrences
+                                   (group-by :file)
+                                   (map (fn [[file occs]] [file (count occs)]))
+                                   (sort-by second >)
+                                   (take 5))]
+        (println)
+        (println (colorize :gray "---"))
+        (println (colorize :bold "Summary:"))
+        (println "  " (colorize :cyan total-patterns) "unique patterns found")
+        (println "  " (colorize :cyan total-occurrences) "total occurrences")
+        (when (seq files-with-counts)
+          (println)
+          (println (colorize :yellow "  Files with most duplications:"))
+          (doseq [[file cnt] files-with-counts]
+            (println "    -" (colorize :blue file) (colorize :gray (str "(" cnt ")")))))))))
 
 (defn print-usage []
   (println (colorize :bold "sexpmachine") "- Find repeating patterns in Clojure code")
