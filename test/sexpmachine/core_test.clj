@@ -93,6 +93,72 @@
       (is (not (some #(and (list? %) (some #{:require} %)) patterns))
           "ns :require clauses should be skipped"))))
 
+(deftest fuzzy-normalize-test
+  (testing "replaces symbols with placeholder"
+    (is (= '_ (sut/fuzzy-normalize 'x)))
+    (is (= '(_ _ _) (sut/fuzzy-normalize '(foo bar baz)))))
+
+  (testing "keeps keywords, strings, numbers as anchors"
+    (is (= :k (sut/fuzzy-normalize :k)))
+    (is (= "s" (sut/fuzzy-normalize "s")))
+    (is (= 42 (sut/fuzzy-normalize 42)))
+    (is (= '(_ :k 1) (sut/fuzzy-normalize '(foo :k 1)))))
+
+  (testing "normalizes nested structures"
+    (is (= '[_ {:a _}] (sut/fuzzy-normalize '[x {:a y}])))
+    ;; `let` and `some->` are also symbols, so they normalize too
+    (is (= '(_ [_ (_ _)] _)
+           (sut/fuzzy-normalize '(let [result (some-> x)] result))))))
+
+(deftest fuzzy-normalize-ordered-test
+  (testing "sorts let-bindings when all pairs are independent"
+    (let [a (sut/fuzzy-normalize-ordered '(let [b (foo) a (bar)] (baz a b)))
+          b (sut/fuzzy-normalize-ordered '(let [a (bar) b (foo)] (baz a b)))]
+      (is (= a b)
+          "Independent let-bindings should canonicalize to the same form regardless of order")))
+
+  (testing "leaves bindings alone when one pair references another"
+    (let [a (sut/fuzzy-normalize-ordered '(let [a (foo) b (inc a)] b))
+          b (sut/fuzzy-normalize-ordered '(let [b (inc a) a (foo)] b))]
+      (is (not= a b)
+          "Dependent bindings must not be reordered — different original code, different result")))
+
+  (testing "leaves bindings alone when LHS uses destructuring"
+    (let [a (sut/fuzzy-normalize-ordered '(let [{:keys [x]} m a 1] a))
+          b (sut/fuzzy-normalize-ordered '(let [a 1 {:keys [x]} m] a))]
+      (is (not= a b)
+          "Destructuring LHS is opaque; pairs must stay in original order")))
+
+  (testing "applies to if-let and when-let too (single pair, no-op reorder)"
+    (is (= (sut/fuzzy-normalize-ordered '(if-let [x (foo)] x nil))
+           (sut/fuzzy-normalize-ordered '(if-let [y (foo)] y nil))))
+    (is (= (sut/fuzzy-normalize-ordered '(when-let [x (foo)] x))
+           (sut/fuzzy-normalize-ordered '(when-let [y (foo)] y)))))
+
+  (testing "non-let forms behave like fuzzy-normalize"
+    (is (= (sut/fuzzy-normalize '(+ a b))
+           (sut/fuzzy-normalize-ordered '(+ a b))))
+    (is (= (sut/fuzzy-normalize '[:div {:class "x"}])
+           (sut/fuzzy-normalize-ordered '[:div {:class "x"}]))))
+
+  (testing "recurses into nested let forms"
+    (let [a (sut/fuzzy-normalize-ordered '(foo (let [b 2 a 1] a)))
+          b (sut/fuzzy-normalize-ordered '(foo (let [a 1 b 2] a)))]
+      (is (= a b)
+          "Nested let-bindings should be reordered too"))))
+
+(deftest fuzzy-analyze-test
+  (testing "groups expressions that differ only in symbol names"
+    (let [exact (sut/analyze-project fixtures-dir 5 2 {})
+          fuzzy (sut/analyze-project fixtures-dir 5 2 {:fuzzy? true})
+          fuzzy-patterns (set (map first fuzzy))]
+      (is (> (count fuzzy) (count exact))
+          "Fuzzy mode should find at least as many groups as exact")
+      ;; (some-> x :data :value) and (some-> id :data :value) should merge
+      ;; under (_ _ :data :value); keywords anchor the match
+      (is (contains? fuzzy-patterns '(_ _ :data :value))
+          "some-> chains differing only in binding name should group together"))))
+
 (deftest fn-args-skipped-test
   (testing "function argument vectors are not included in results"
     (let [results (sut/analyze-project fixtures-dir 3 2 {})

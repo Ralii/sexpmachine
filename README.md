@@ -25,6 +25,9 @@ Arguments:
 Options:
   --no-calls           Exclude function/macro calls from results
   --no-keyword-chains  Exclude keyword-heavy expressions (maps, get-in paths, etc.)
+  --fuzzy              Group expressions that differ only in symbol names
+  --fuzzy-order        Like --fuzzy, plus reorder independent let/if-let/when-let
+                       bindings before grouping
   --help               Show this help message
 ```
 
@@ -53,6 +56,22 @@ Exclude keyword-heavy expressions (get-in paths, keyword maps, etc.):
 ```bash
 sexpmachine src 3 2 --no-keyword-chains
 ```
+
+Find large structurally-similar patterns that differ only in local symbol names:
+
+```bash
+sexpmachine src 20 2 --fuzzy
+```
+
+With `--fuzzy`, symbols are replaced by `_` before grouping, so e.g. `(let [x (foo)] x)` and `(let [y (foo)] y)` group together as `(let [_ (foo)] _)`. Keywords, strings, and numbers stay as-is, so they anchor the match.
+
+Catch let-blocks whose bindings appear in different orders:
+
+```bash
+sexpmachine src 20 2 --fuzzy-order
+```
+
+`--fuzzy-order` extends `--fuzzy`: in addition to symbol generalization, it sorts the binding pairs of `let`/`if-let`/`when-let` into canonical order — but only when every pair has a plain-symbol LHS and no pair's RHS references any other pair's LHS. Forms with destructuring, shadowing, or cross-references are left in their original order to avoid changing semantics. `loop`, `binding`, `for`, and `letfn` are not reordered.
 
 ## Example Output
 

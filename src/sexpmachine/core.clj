@@ -96,9 +96,69 @@
                     (and (vector? %) (every? symbol? %)))              ; nested vector destructuring
                expr)))
 
+(defn fuzzy-normalize
+  "Replace symbols with a placeholder, keeping keywords/literals as anchors.
+   Two expressions with the same normalized form differ only in symbol names."
+  [expr]
+  (cond
+    (symbol? expr) '_
+    (map? expr)    (into {} (map (fn [[k v]] [(fuzzy-normalize k) (fuzzy-normalize v)]) expr))
+    (vector? expr) (mapv fuzzy-normalize expr)
+    (set? expr)    (into #{} (map fuzzy-normalize expr))
+    (seq? expr)    (apply list (map fuzzy-normalize expr))
+    :else expr))
+
+(def ^:private let-binding-forms #{'let 'if-let 'when-let})
+
+(defn- let-form?
+  [expr]
+  (and (seq? expr)
+       (let-binding-forms (first expr))
+       (vector? (second expr))))
+
+(defn- bindings-reorderable?
+  "True when every pair has a plain-symbol LHS and no RHS references any LHS.
+   Operates on original (un-normalized) pairs so symbol names are intact."
+  [pairs]
+  (and (every? #(symbol? (first %)) pairs)
+       (let [lhs-set (set (map first pairs))]
+         (every? (fn [[_ rhs]]
+                   (not-any? lhs-set (collect-leaves rhs)))
+                 pairs))))
+
+(defn fuzzy-normalize-ordered
+  "Like fuzzy-normalize, but additionally sorts let/if-let/when-let binding
+   pairs when all pairs are mutually independent (no cross-references and
+   plain-symbol LHS only)."
+  [expr]
+  (or (when (let-form? expr)
+        (let [[_op bvec & body] expr]
+          (when (even? (count bvec))
+            (let [pairs (partition 2 bvec)]
+              (when (bindings-reorderable? pairs)
+                (let [norm-pairs (->> pairs
+                                      (map (fn [[_ rhs]] ['_ (fuzzy-normalize-ordered rhs)]))
+                                      (sort-by pr-str))]
+                  (apply list
+                         '_
+                         (into [] cat norm-pairs)
+                         (map fuzzy-normalize-ordered body))))))))
+      (cond
+        (symbol? expr) '_
+        (map? expr)    (into {} (map (fn [[k v]] [(fuzzy-normalize-ordered k)
+                                                  (fuzzy-normalize-ordered v)]) expr))
+        (vector? expr) (mapv fuzzy-normalize-ordered expr)
+        (set? expr)    (into #{} (map fuzzy-normalize-ordered expr))
+        (seq? expr)    (apply list (map fuzzy-normalize-ordered expr))
+        :else expr)))
+
 (defn analyze-project
-  [dir min-size min-frequency {:keys [exclude-calls? exclude-keyword-chains?]}]
-  (let [files (find-clj-files dir)]
+  [dir min-size min-frequency {:keys [exclude-calls? exclude-keyword-chains? fuzzy? fuzzy-order?]}]
+  (let [files (find-clj-files dir)
+        group-fn (cond
+                   fuzzy-order? (comp fuzzy-normalize-ordered :sexpr)
+                   fuzzy?       (comp fuzzy-normalize :sexpr)
+                   :else        :sexpr)]
     (->> files
          (mapcat (fn [path]
                    (when-let [root (parse-file path)]
@@ -113,7 +173,7 @@
          (remove #(fn-args-vector? (:sexpr %)))
          (filter #(if exclude-calls? (not (function-call? (:sexpr %))) true))
          (filter #(if exclude-keyword-chains? (not (keyword-chain? (:sexpr %))) true))
-         (group-by :sexpr)
+         (group-by group-fn)
          (filter (fn [[_ occurrences]] (>= (count occurrences) min-frequency)))
          (sort-by (fn [[_ occurrences]] (- (count occurrences)))))))
 
@@ -162,13 +222,16 @@
   (println (colorize :yellow "Options:"))
   (println (colorize :green "  --no-calls          ") "Exclude function/macro calls from results")
   (println (colorize :green "  --no-keyword-chains ") "Exclude keyword-heavy expressions (maps, get-in paths, etc.)")
+  (println (colorize :green "  --fuzzy             ") "Group expressions that differ only in symbol names")
+  (println (colorize :green "  --fuzzy-order       ") "Like --fuzzy, plus reorder independent let/if-let/when-let bindings")
   (println (colorize :green "  --help              ") "Show this help message")
   (println)
   (println (colorize :yellow "Examples:"))
   (println (colorize :gray "  sexpmachine src"))
   (println (colorize :gray "  sexpmachine src 4 3"))
   (println (colorize :gray "  sexpmachine src 3 2 --no-calls"))
-  (println (colorize :gray "  sexpmachine src 3 2 --no-keyword-chains")))
+  (println (colorize :gray "  sexpmachine src 3 2 --no-keyword-chains"))
+  (println (colorize :gray "  sexpmachine src 20 2 --fuzzy")))
 
 (defn -main [& args]
   (let [help? (or (empty? args) (some #{"--help" "-h"} args))]
@@ -176,12 +239,17 @@
       (print-usage)
       (let [exclude-calls? (some #{"--no-calls"} args)
             exclude-keyword-chains? (some #{"--no-keyword-chains"} args)
-            args (remove #{"--no-calls" "--no-keyword-chains"} args)
+            fuzzy-order? (some #{"--fuzzy-order"} args)
+            fuzzy? (or fuzzy-order? (some #{"--fuzzy"} args))
+            args (remove #{"--no-calls" "--no-keyword-chains" "--fuzzy" "--fuzzy-order"} args)
             dir (first args)
             min-size (parse-long (or (second args) "3"))
             min-frequency (parse-long (or (nth args 2 nil) "5"))
+            fuzzy-label (cond fuzzy-order? ", fuzzy matching + binding reorder"
+                              fuzzy?       ", fuzzy matching")
             opts-str (str (when exclude-calls? (colorize :green ", excluding calls"))
-                          (when exclude-keyword-chains? (colorize :green ", excluding keyword chains")))]
+                          (when exclude-keyword-chains? (colorize :green ", excluding keyword chains"))
+                          (when fuzzy-label (colorize :magenta fuzzy-label)))]
         (println (colorize :bold "Analyzing") (colorize :blue dir)
                  (colorize :gray "(min size:") min-size
                  (colorize :gray ", min frequency:") min-frequency
@@ -189,7 +257,9 @@
         (println (colorize :gray "---"))
         (let [results (analyze-project dir min-size min-frequency
                                        {:exclude-calls? exclude-calls?
-                                        :exclude-keyword-chains? exclude-keyword-chains?})]
+                                        :exclude-keyword-chains? exclude-keyword-chains?
+                                        :fuzzy? fuzzy?
+                                        :fuzzy-order? fuzzy-order?})]
           (print-analysis-results results))))))
 
 (when (= *file* (System/getProperty "babashka.file"))
