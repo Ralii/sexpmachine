@@ -54,6 +54,29 @@
       ;; {:color :blue} should appear 5 times
       (is (= 5 (count (get result-map {:color :blue})))))))
 
+(deftest inclusive-thresholds-test
+  (testing "min-frequency is inclusive"
+    (let [results (sut/analyze-project fixtures-dir 3 3 {})
+          patterns (set (map first results))]
+      (is (contains? patterns {:class "container"})
+          "A pattern seen 5 times should still be reported with min-frequency 3")
+      (is (contains? patterns {:style {:color :blue}})
+          "Patterns with occurrences above the threshold should be included too")))
+
+  (testing "min-size is inclusive"
+    (let [results (sut/analyze-project fixtures-dir 7 2 {})
+          patterns (set (map first results))]
+      (is (contains? patterns {:style {:color :blue}})
+          "A pattern with size 7 should be reported with min-size 7")
+      (is (not (contains? patterns {:class "container"}))
+          "A pattern with size 4 should not be reported with min-size 7"))))
+
+(deftest results-ordering-test
+  (testing "results are sorted by frequency ascending"
+    (let [counts (map (comp count second) (sut/analyze-project fixtures-dir 3 2 {}))]
+      (is (= (sort counts) counts)
+          "Less frequent patterns should appear first, with more frequent ones later"))))
+
 (deftest parse-file-test
   (testing "parses valid clojure file"
     (let [node (sut/parse-file "test/fixtures/sample_a.clj")]

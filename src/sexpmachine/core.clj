@@ -175,7 +175,7 @@
          (filter #(if exclude-keyword-chains? (not (keyword-chain? (:sexpr %))) true))
          (group-by group-fn)
          (filter (fn [[_ occurrences]] (>= (count occurrences) min-frequency)))
-         (sort-by (fn [[_ occurrences]] (- (count occurrences)))))))
+         (sort-by (comp count second)))))
 
 (defn print-analysis-results
   [results]
