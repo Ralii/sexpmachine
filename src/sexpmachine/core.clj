@@ -34,15 +34,47 @@
        (seq expr)
        (= 'ns (first expr))))
 
+(def ^:private ignore-marker :sexpmachine/ignore)
+
+(def ^:private trivia-tags #{:whitespace :newline :comment :comma})
+
+(defn- ignore-marker?
+  "True when node is a #_ reader-discard carrying the sexpmachine ignore marker,
+   i.e. #_:sexpmachine/ignore or #_{:sexpmachine/ignore ...}. Mirrors clj-kondo's
+   #_:clj-kondo/ignore convention: placed before (or above) a form, it skips it."
+  [node]
+  (and (= :uneval (n/tag node))
+       (when-let [form (->> (n/children node)
+                            (remove (comp trivia-tags n/tag))
+                            first)]
+         (let [sexpr (try (n/sexpr form) (catch Exception _ nil))]
+           (or (= ignore-marker sexpr)
+               (and (map? sexpr) (contains? sexpr ignore-marker)))))))
+
+(defn- keep-children
+  "Drop forms preceded by an ignore marker, plus the markers and trivia, from a
+   seq of sibling nodes. Returns the form nodes to descend into."
+  [children]
+  (loop [nodes children, ignore-next? false, acc []]
+    (if-let [node (first nodes)]
+      (cond
+        (trivia-tags (n/tag node)) (recur (rest nodes) ignore-next? acc)
+        (ignore-marker? node)      (recur (rest nodes) true acc)
+        :else                      (recur (rest nodes) false
+                                          (if ignore-next? acc (conj acc node))))
+      acc)))
+
 (defn collect-subexpressions
   "Returns a seq of [sexpr node] pairs."
   [node]
   (when (n/inner? node)
     (let [sexpr (try (n/sexpr node) (catch Exception _ nil))]
       (when-not (ns-form? sexpr)
-        (let [children (n/children node)]
+        (let [children (keep-children (n/children node))]
           (concat
-           (when sexpr [[sexpr node]])
+           ;; The synthetic :forms root reports a (do ...) wrapping the whole
+           ;; file; skip it so top-level ignores apply and it isn't a "pattern".
+           (when (and sexpr (not= :forms (n/tag node))) [[sexpr node]])
            (mapcat collect-subexpressions children)))))))
 
 (defn expression-size

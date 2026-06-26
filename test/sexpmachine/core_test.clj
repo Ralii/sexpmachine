@@ -1,5 +1,6 @@
 (ns sexpmachine.core-test
   (:require [clojure.test :refer [deftest testing is]]
+            [rewrite-clj.parser :as p]
             [sexpmachine.core :as sut]))
 
 (def fixtures-dir "test/fixtures")
@@ -115,6 +116,34 @@
       ;; No pattern should contain :require keyword at top level (ns internals)
       (is (not (some #(and (list? %) (some #{:require} %)) patterns))
           "ns :require clauses should be skipped"))))
+
+(deftest ignore-marker-test
+  (let [collect (fn [src]
+                  (->> (p/parse-string-all src)
+                       sut/collect-subexpressions
+                       (map first)))]
+    (testing "#_:sexpmachine/ignore skips the following form and its subexpressions"
+      (let [sexprs (collect "(defn a [] (+ 1 2 3))
+#_:sexpmachine/ignore
+(defn b [] (+ 1 2 3))")]
+        (is (not (some #(and (seq? %) (= 'b (second %))) sexprs))
+            "The ignored form itself should be skipped")
+        (is (= 1 (count (filter #{'(+ 1 2 3)} sexprs)))
+            "Subexpressions of the ignored form should also be skipped")))
+
+    (testing "#_{:sexpmachine/ignore ...} map form also skips the following form"
+      (let [sexprs (collect "#_{:sexpmachine/ignore true}\n(defn c [] (+ 1 2 3))")]
+        (is (not (some #(and (seq? %) (= 'c (second %))) sexprs)))))
+
+    (testing "ignore marker works above nested forms"
+      (let [sexprs (collect "(let [x 1]
+                               #_:sexpmachine/ignore
+                               (repeated-call x))")]
+        (is (not (some #(and (seq? %) (= 'repeated-call (first %))) sexprs)))))
+
+    (testing "ordinary discards and forms are unaffected"
+      (let [sexprs (collect "(defn d [] (+ 1 2 3))")]
+        (is (some #(and (seq? %) (= 'd (second %))) sexprs))))))
 
 (deftest fuzzy-normalize-test
   (testing "replaces symbols with placeholder"

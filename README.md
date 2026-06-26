@@ -103,6 +103,25 @@ Pattern: {:class "container"}
     - src/views/about.clj :15
 ```
 
+## Ignoring Forms
+
+To exclude a specific form from analysis, put a `#_:sexpmachine/ignore` reader-discard above (or before) it — the same convention clj-kondo uses with `#_:clj-kondo/ignore`:
+
+```clojure
+#_:sexpmachine/ignore
+(this-form {:and :all} (its sub-expressions) (are skipped))
+```
+
+The marker applies to the next form, so it works on its own line above the form or inline before it. Nested forms can be ignored too:
+
+```clojure
+(let [x 1]
+  #_:sexpmachine/ignore
+  (intentionally-repeated x))
+```
+
+The map form `#_{:sexpmachine/ignore true}` is also recognized, leaving room for future per-form options.
+
 ## How It Works
 
 sexpmachine uses [rewrite-clj](https://github.com/clj-commons/rewrite-clj) to parse Clojure source files into ASTs. It then:
